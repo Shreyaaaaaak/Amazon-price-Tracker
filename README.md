@@ -18,7 +18,7 @@ Copy-Item .env.example .env
 python app.py
 ```
 
-Open `http://127.0.0.1:5000`.
+Open:-  https://amazon-price-tracker-production-294d.up.railway.app/.
 
 ## Required environment variables
 
