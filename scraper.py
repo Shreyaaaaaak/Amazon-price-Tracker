@@ -1,71 +1,39 @@
-import requests
-from bs4 import BeautifulSoup
-import smtplib
+import os
 import time
 
-# --- CONFIGURATION ---
-URL = "https://www.amazon.in/Autofocus-Photography-Vlogging-Anti-Shake-Batteries/dp/B0FV38K4VW/"
-TARGET_PRICE = 8000.0
-MY_EMAIL = "your_email@gmail.com"        
-MY_PASSWORD = "xxxx xxxx xxxx xxxx"      
-RECIPIENT_EMAIL = "friend@example.com"
-CHECK_INTERVAL_HOURS = 6  # How often to check
+from tracker import TrackerError, fetch_product_snapshot, send_price_alert
 
-headers = {
-    "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
-    "Accept-Language": "en-US,en;q=0.9",
-}
 
-def send_email(product_title, price):
+URL = os.environ.get("PRODUCT_URL", "")
+TARGET_PRICE = float(os.environ.get("TARGET_PRICE", "0"))
+RECIPIENT_EMAIL = os.environ.get("RECIPIENT_EMAIL", "")
+CHECK_INTERVAL_HOURS = int(os.environ.get("CHECK_INTERVAL_HOURS", "6"))
+
+
+def check_amazon_price() -> None:
+    if not URL or TARGET_PRICE <= 0 or not RECIPIENT_EMAIL:
+        raise SystemExit(
+            "Set PRODUCT_URL, TARGET_PRICE, and RECIPIENT_EMAIL before running scraper.py."
+        )
+
     try:
-        server = smtplib.SMTP('smtp.gmail.com', 587)
-        server.ehlo()
-        server.starttls()
-        server.ehlo()
-        server.login(MY_EMAIL, MY_PASSWORD)
+        snapshot = fetch_product_snapshot(URL)
+        print(f"Product: {snapshot.title}")
+        print(f"Current price: Rs {snapshot.current_price:,.2f}")
+        print(f"Target price: Rs {TARGET_PRICE:,.2f}")
 
-        subject = "Price Drop Alert!"
-        body = f"Good news! The price for {product_title} has dropped to {price}.\n\nCheck it here: {URL}"
-        msg = f"Subject: {subject}\nTo: {RECIPIENT_EMAIL}\nFrom: {MY_EMAIL}\n\n{body}"
-
-        server.sendmail(MY_EMAIL, RECIPIENT_EMAIL, msg)
-        print(f"📧 Email sent to {RECIPIENT_EMAIL} successfully!")
-        server.quit()
-    except Exception as e:
-        print(f"Error sending email: {e}")
-
-def check_amazon_price():
-    print("🔎 Checking price...")
-    try:
-        page = requests.get(URL, headers=headers)
-        if page.status_code != 200:
-            print("Amazon blocked the access!")
-            return
-
-        soup = BeautifulSoup(page.content, 'html.parser')
-        title = soup.find(id="productTitle").get_text().strip()
-        price_whole = soup.find("span", class_="a-price-whole")
-        
-        if price_whole:
-            current_price = float(price_whole.get_text().replace(",", "").replace(".", ""))
-            print(f"   Product: {title[:30]}...") # Print just first 30 chars to keep it clean
-            print(f"   Current Price: {current_price}")
-
-            if current_price <= TARGET_PRICE:
-                print("✅ DEAL FOUND! Sending email...")
-                send_email(title, current_price)
-            else:
-                print(f"❌ No deal yet. Target: {TARGET_PRICE}")
+        if snapshot.current_price <= TARGET_PRICE:
+            print("Deal found. Sending alert email.")
+            send_price_alert(snapshot, RECIPIENT_EMAIL, TARGET_PRICE)
         else:
-            print("Price element not found.")
+            print("No deal yet.")
+    except TrackerError as exc:
+        print(f"Check failed: {exc}")
 
-    except Exception as e:
-        print(f"Error: {e}")
 
-# --- THE INFINITE LOOP ---
-while True:
-    check_amazon_price()
-    print(f"😴 Sleeping for {CHECK_INTERVAL_HOURS} hours...")
-    
-    # time.sleep takes seconds, so: Hours * 60 minutes * 60 seconds
-    time.sleep(CHECK_INTERVAL_HOURS * 60 * 60)
+if __name__ == "__main__":
+    while True:
+        check_amazon_price()
+        print(f"Sleeping for {CHECK_INTERVAL_HOURS} hour(s).")
+        time.sleep(CHECK_INTERVAL_HOURS * 60 * 60)
+
