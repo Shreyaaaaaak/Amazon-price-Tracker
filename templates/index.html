@@ -1,0 +1,143 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Amazon Price Tracker</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;700&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+  </head>
+  <body>
+    <div class="orb orb-left"></div>
+    <div class="orb orb-right"></div>
+    <main class="shell">
+      <section class="hero panel">
+        <div class="hero-copy">
+          <p class="eyebrow">Live price watch</p>
+          <h1>Track Amazon products without babysitting the tab.</h1>
+          <p class="lede">
+            Add a product URL, your target price, and an email address. The dashboard keeps checking in the background and alerts you when the price falls.
+          </p>
+        </div>
+        <div class="hero-meta">
+          <div class="metric">
+            <span class="metric-label">Tracked items</span>
+            <strong>{{ trackers|length }}</strong>
+          </div>
+          <div class="metric">
+            <span class="metric-label">Email alerts</span>
+            <strong>{{ "Ready" if email_ready else "Needs SMTP config" }}</strong>
+          </div>
+        </div>
+      </section>
+
+      {% with messages = get_flashed_messages(with_categories=true) %}
+        {% if messages %}
+          <section class="flash-stack">
+            {% for category, message in messages %}
+              <div class="flash flash-{{ category }}">{{ message }}</div>
+            {% endfor %}
+          </section>
+        {% endif %}
+      {% endwith %}
+
+      <section class="layout">
+        <section class="panel form-panel">
+          <div class="section-head">
+            <p class="eyebrow">New tracker</p>
+            <h2>Add a product watch</h2>
+          </div>
+          <form action="{{ url_for('add_tracker') }}" method="post" class="tracker-form">
+            <label>
+              <span>Amazon product URL</span>
+              <input type="url" name="product_url" placeholder="https://www.amazon.in/..." required>
+            </label>
+            <label>
+              <span>Target price (INR)</span>
+              <input type="number" step="0.01" min="1" name="target_price" placeholder="7999" required>
+            </label>
+            <label>
+              <span>Alert email</span>
+              <input type="email" name="recipient_email" placeholder="you@example.com" required>
+            </label>
+            <label>
+              <span>Check interval (hours)</span>
+              <input type="number" min="1" max="24" name="interval_hours" value="6" required>
+            </label>
+            <button type="submit">Start tracking</button>
+          </form>
+        </section>
+
+        <section class="panel list-panel">
+          <div class="section-head">
+            <p class="eyebrow">Trackers</p>
+            <h2>Current watches</h2>
+          </div>
+
+          {% if trackers %}
+            <div class="tracker-grid">
+              {% for tracker in trackers %}
+                <article class="tracker-card">
+                  <div class="card-top">
+                    <div>
+                      <p class="card-label">Status</p>
+                      <h3>{{ tracker.last_title or "Awaiting first scrape" }}</h3>
+                    </div>
+                    <span class="status-pill">{{ tracker.last_status }}</span>
+                  </div>
+
+                  <dl class="price-grid">
+                    <div>
+                      <dt>Current price</dt>
+                      <dd>{{ tracker.current_price|currency_inr }}</dd>
+                    </div>
+                    <div>
+                      <dt>Target price</dt>
+                      <dd>{{ tracker.target_price|currency_inr }}</dd>
+                    </div>
+                    <div>
+                      <dt>Last checked</dt>
+                      <dd>{{ tracker.last_checked_at|pretty_time }}</dd>
+                    </div>
+                    <div>
+                      <dt>Next check</dt>
+                      <dd>{{ tracker.next_check_at|pretty_time }}</dd>
+                    </div>
+                  </dl>
+
+                  <p class="meta">
+                    <span>Recipient: {{ tracker.recipient_email }}</span>
+                    <span>Interval: every {{ tracker.interval_hours }}h</span>
+                  </p>
+
+                  <a class="product-link" href="{{ tracker.product_url }}" target="_blank" rel="noreferrer">Open product</a>
+
+                  {% if tracker.last_error %}
+                    <p class="error-copy">{{ tracker.last_error }}</p>
+                  {% endif %}
+
+                  <div class="card-actions">
+                    <form action="{{ url_for('check_tracker', tracker_id=tracker.id) }}" method="post">
+                      <button type="submit" class="ghost-button">Check now</button>
+                    </form>
+                    <form action="{{ url_for('remove_tracker', tracker_id=tracker.id) }}" method="post">
+                      <button type="submit" class="danger-button">Delete</button>
+                    </form>
+                  </div>
+                </article>
+              {% endfor %}
+            </div>
+          {% else %}
+            <div class="empty-state">
+              <p>No trackers yet.</p>
+              <p>Add your first Amazon product to start building the watchlist.</p>
+            </div>
+          {% endif %}
+        </section>
+      </section>
+    </main>
+  </body>
+</html>
+
